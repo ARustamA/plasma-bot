@@ -1,0 +1,20 @@
+{
+  "sessions": [
+    {
+      "id": "529589875:529589875",
+      "data": {
+        "state": "ready",
+        "donationType": "blood",
+        "lastDonationDate": "2025-05-16",
+        "donorData": {
+          "name": "Ахметьянов Рустам Айратович",
+          "phone": "+79174994797",
+          "email": "gumer2009@rambler.ru",
+          "birthDate": "1992-07-27",
+          "snils": "14486082175"
+        },
+        "checkingEnabled": true
+      }
+    }
+  ]
+}
