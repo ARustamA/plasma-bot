@@ -1,5 +1,57 @@
-const { checkAvailabilityInternal } = require('../utils/dates');
+const { checkAvailabilityInternal, checkAvailabilityFromDateInternal } = require('../utils/dates');
 const { Markup } = require('telegraf');
+async function checkAvailabilityFromDate(ctx, startDate) {
+  try {
+    console.log('Проверяем доступность дат начиная с:', startDate.toLocaleDateString());
+
+    const { checkAvailabilityFromDateInternal } = require('../utils/dates');
+    const availableDates = await checkAvailabilityFromDateInternal(startDate);
+
+    if (availableDates && availableDates.length > 0) {
+      console.log('Найдены доступные даты:', availableDates);
+
+      // Создаем кнопки для выбора дат
+      const dateButtons = availableDates.map(dateData => [
+        {
+          text: dateData.displayText,
+          callback_data: `select_date_${dateData.dateString}`
+        }
+      ]);
+
+      // Добавляем кнопку обновления
+      dateButtons.push([
+        { text: '🔄 Обновить список', callback_data: 'refresh_dates' }
+      ]);
+
+      await ctx.reply('🎉 Найдены доступные даты для записи:', {
+        reply_markup: { inline_keyboard: dateButtons }
+      });
+    } else {
+      console.log('Доступных дат не найдено');
+      await ctx.reply(
+        '😔 Пока нет доступных дат для записи.\n\n' +
+        '🔍 Я продолжу проверять и уведомлю вас, когда появятся свободные места.',
+        {
+          reply_markup: {
+            inline_keyboard: [[
+              { text: '🔄 Проверить снова', callback_data: 'refresh_dates' }
+            ]]
+          }
+        }
+      );
+    }
+  } catch (error) {
+    console.error('Ошибка при проверке доступности с определенной даты:', error);
+
+    if (error.message.includes('net::ERR_EMPTY_RESPONSE') ||
+      error.message.includes('ERR_CONNECTION_REFUSED') ||
+      error.message.includes('has been closed')) {
+      await ctx.reply('🌐 Сайт временно недоступен. Попробую позже...');
+    } else {
+      await ctx.reply('❌ Ошибка при проверке дат. Попробую позже...');
+    }
+  }
+}
 
 async function closeModalIfExists(page) {
   try {
@@ -46,75 +98,47 @@ async function checkAvailability(ctx) {
     if (availableDates && availableDates.length > 0) {
       console.log('Найдены доступные даты:', availableDates);
 
-      // Создаем кнопки для выбора дат с красивым отображением
+      // Создаем кнопки для выбора дат с отображением месяца
       const dateButtons = availableDates.map(dateData => [
-        Markup.button.callback(
-          `📅 ${dateData.displayText}`,
-          `select_date_${dateData.dateString}`
-        )
+        {
+          text: dateData.displayText,
+          callback_data: `select_date_${dateData.dateString}`
+        }
       ]);
 
       // Добавляем кнопку обновления
       dateButtons.push([
-        Markup.button.callback('🔄 Обновить список', 'refresh_dates')
+        { text: '🔄 Обновить список', callback_data: 'refresh_dates' }
       ]);
 
-      await ctx.reply(
-        '🎉 *Найдены доступные даты для записи на плазму:*\n\n' +
-        '📋 Выберите подходящую дату из списка ниже:',
-        {
-          parse_mode: 'Markdown',
-          reply_markup: { inline_keyboard: dateButtons }
-        }
-      );
+      await ctx.reply('🎉 Найдены доступные даты для записи:', {
+        reply_markup: { inline_keyboard: dateButtons }
+      });
     } else {
       console.log('Доступных дат не найдено');
-
-      const refreshButton = Markup.inlineKeyboard([
-        [Markup.button.callback('🔄 Проверить снова', 'refresh_dates')]
-      ]);
-
       await ctx.reply(
-        '😔 *Пока нет доступных дат для записи*\n\n' +
-        '🔍 Я продолжу автоматически проверять каждый час.\n' +
-        '💡 Вы также можете проверить вручную:',
+        '😔 Пока нет доступных дат для записи. Я продолжу проверять...',
         {
-          parse_mode: 'Markdown',
-          ...refreshButton
+          reply_markup: {
+            inline_keyboard: [[
+              { text: '🔄 Обновить список', callback_data: 'refresh_dates' }
+            ]]
+          }
         }
       );
     }
   } catch (error) {
     console.error('Ошибка при проверке доступности:', error);
 
-    const refreshButton = Markup.inlineKeyboard([
-      [Markup.button.callback('🔄 Попробовать снова', 'refresh_dates')]
-    ]);
-
     if (error.message.includes('net::ERR_EMPTY_RESPONSE') ||
       error.message.includes('ERR_CONNECTION_REFUSED')) {
-      await ctx.reply(
-        '🌐 *Сайт временно недоступен*\n\n' +
-        '⏰ Попробую автоматически через час.\n' +
-        '🔄 Или попробуйте обновить вручную:',
-        {
-          parse_mode: 'Markdown',
-          ...refreshButton
-        }
-      );
+      await ctx.reply('🌐 Сайт временно недоступен. Попробую позже...');
     } else {
-      await ctx.reply(
-        '❌ *Ошибка при проверке дат*\n\n' +
-        '🔧 Возможно, временные технические проблемы.\n' +
-        '⏰ Попробую снова через час:',
-        {
-          parse_mode: 'Markdown',
-          ...refreshButton
-        }
-      );
+      await ctx.reply('❌ Ошибка при проверке дат. Попробую позже...');
     }
   }
 }
+
 
 async function startBooking(ctx) {
   try {
@@ -123,108 +147,78 @@ async function startBooking(ctx) {
     const { getMonthName } = require('../utils/dates');
     const displayDate = `${date.getDate()} ${getMonthName(date.getMonth())}`;
 
-    await ctx.reply(`🔍 *Поиск свободного времени*\n\n📅 Дата: ${displayDate}\n⏳ Загружаю доступные слоты...`, {
-      parse_mode: 'Markdown'
-    });
+    await ctx.reply(`🔍 Ищу доступное время для ${displayDate}...`);
 
     // Получаем доступное время для выбранной даты
     const availableTimes = await getAvailableTimesForDate(selectedDate);
 
     if (availableTimes.length > 0) {
-      // Группируем время по периодам дня для удобства
-      const morningTimes = availableTimes.filter(time => {
-        const hour = parseInt(time.split(':')[0]);
-        return hour >= 8 && hour < 12;
-      });
-
-      const afternoonTimes = availableTimes.filter(time => {
-        const hour = parseInt(time.split(':')[0]);
-        return hour >= 12 && hour < 17;
-      });
-
-      const eveningTimes = availableTimes.filter(time => {
-        const hour = parseInt(time.split(':')[0]);
-        return hour >= 17;
-      });
+      // Группируем время по периодам дня
+      const timeGroups = {
+        morning: availableTimes.filter(time => {
+          const hour = parseInt(time.split(':')[0]);
+          return hour >= 8 && hour < 12;
+        }),
+        afternoon: availableTimes.filter(time => {
+          const hour = parseInt(time.split(':')[0]);
+          return hour >= 12 && hour < 17;
+        }),
+        evening: availableTimes.filter(time => {
+          const hour = parseInt(time.split(':')[0]);
+          return hour >= 17 && hour < 20;
+        })
+      };
 
       const timeButtons = [];
 
-      // Добавляем утренние слоты
-      if (morningTimes.length > 0) {
-        morningTimes.forEach(time => {
-          timeButtons.push([
-            Markup.button.callback(`🌅 ${time}`, `select_time_${time}`)
-          ]);
+      if (timeGroups.morning.length > 0) {
+        timeButtons.push([{ text: '🌅 Утро (8:00-12:00)', callback_data: 'time_period_morning' }]);
+        timeGroups.morning.forEach(time => {
+          timeButtons.push([{ text: `⏰ ${time}`, callback_data: `select_time_${time}` }]);
         });
       }
 
-      // Добавляем дневные слоты
-      if (afternoonTimes.length > 0) {
-        afternoonTimes.forEach(time => {
-          timeButtons.push([
-            Markup.button.callback(`☀️ ${time}`, `select_time_${time}`)
-          ]);
+      if (timeGroups.afternoon.length > 0) {
+        timeButtons.push([{ text: '☀️ День (12:00-17:00)', callback_data: 'time_period_afternoon' }]);
+        timeGroups.afternoon.forEach(time => {
+          timeButtons.push([{ text: `⏰ ${time}`, callback_data: `select_time_${time}` }]);
         });
       }
 
-      // Добавляем вечерние слоты
-      if (eveningTimes.length > 0) {
-        eveningTimes.forEach(time => {
-          timeButtons.push([
-            Markup.button.callback(`🌆 ${time}`, `select_time_${time}`)
-          ]);
+      if (timeGroups.evening.length > 0) {
+        timeButtons.push([{ text: '🌆 Вечер (17:00-20:00)', callback_data: 'time_period_evening' }]);
+        timeGroups.evening.forEach(time => {
+          timeButtons.push([{ text: `⏰ ${time}`, callback_data: `select_time_${time}` }]);
         });
       }
 
       // Добавляем кнопки навигации
       timeButtons.push([
-        Markup.button.callback('🔙 Выбрать другую дату', 'back_to_dates'),
-        Markup.button.callback('🔄 Обновить время', `refresh_times_${selectedDate}`)
+        { text: '🔄 Обновить время', callback_data: `refresh_times_${selectedDate}` },
+        { text: '🔙 К выбору дат', callback_data: 'back_to_dates' }
       ]);
 
-      await ctx.reply(
-        `⏰ *Доступное время на ${displayDate}:*\n\n` +
-        `🌅 Утро: ${morningTimes.length} слотов\n` +
-        `☀️ День: ${afternoonTimes.length} слотов\n` +
-        `🌆 Вечер: ${eveningTimes.length} слотов\n\n` +
-        '👆 Выберите удобное время:',
-        {
-          parse_mode: 'Markdown',
-          reply_markup: { inline_keyboard: timeButtons }
-        }
-      );
+      await ctx.reply(`📅 Доступное время на ${displayDate}:`, {
+        reply_markup: { inline_keyboard: timeButtons }
+      });
     } else {
-      const backButton = Markup.inlineKeyboard([
-        [Markup.button.callback('🔙 Выбрать другую дату', 'back_to_dates')],
-        [Markup.button.callback('🔄 Обновить время', `refresh_times_${selectedDate}`)]
-      ]);
-
       await ctx.reply(
-        `😔 *На ${displayDate} нет свободного времени*\n\n` +
-        '💡 Попробуйте выбрать другую дату или обновить список:',
+        `😔 К сожалению, на ${displayDate} нет свободного времени.`,
         {
-          parse_mode: 'Markdown',
-          ...backButton
+          reply_markup: {
+            inline_keyboard: [
+              [
+                { text: '🔄 Обновить время', callback_data: `refresh_times_${selectedDate}` },
+                { text: '🔙 К выбору дат', callback_data: 'back_to_dates' }
+              ]
+            ]
+          }
         }
       );
     }
   } catch (error) {
     console.error('Ошибка в startBooking:', error);
-
-    const errorButtons = Markup.inlineKeyboard([
-      [Markup.button.callback('🔙 К выбору дат', 'back_to_dates')],
-      [Markup.button.callback('🔄 Попробовать снова', `refresh_times_${ctx.session.selectedDate}`)]
-    ]);
-
-    await ctx.reply(
-      '❌ *Ошибка при загрузке времени*\n\n' +
-      '🔧 Возможно, временные технические проблемы.\n' +
-      '💡 Попробуйте позже или выберите другую дату:',
-      {
-        parse_mode: 'Markdown',
-        ...errorButtons
-      }
-    );
+    await ctx.reply('Произошла ошибка при поиске времени. Попробуйте позже.');
   }
 }
 
@@ -288,4 +282,4 @@ async function getAvailableTimesForDate(dateString) {
   }
 }
 
-module.exports = { checkAvailability, startBooking };
+module.exports = { checkAvailability, checkAvailabilityFromDate, startBooking };

@@ -1,12 +1,11 @@
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
-const { Markup } = require('telegraf'); // Добавить импорт
+const { Markup } = require('telegraf');
 
 async function closeModalIfExists(page) {
   try {
     await page.waitForSelector('.donorform-modal', { timeout: 5000 });
-
     console.log('Найдено модальное окно, закрываем...');
 
     const closeSelectors = [
@@ -31,7 +30,6 @@ async function closeModalIfExists(page) {
 
     await page.keyboard.press('Escape');
     console.log('Попытка закрыть модальное окно через ESC');
-
     return true;
   } catch (error) {
     console.log('Модальное окно не найдено или уже закрыто');
@@ -199,7 +197,6 @@ async function requestCaptchaFromUser(page, ctx, requestManualCaptchaFn) {
   }
 }
 
-// Остальные функции остаются без изменений...
 async function checkSubmissionResult(page, ctx) {
   try {
     // Проверяем наличие сообщений об успехе или ошибке
@@ -310,3 +307,4 @@ async function fillFormData(page, donorData) {
 }
 
 module.exports = { bookAppointment };
+
