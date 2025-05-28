@@ -1,2 +1,24 @@
-node_modules
+# Переменные окружения
 .env
+
+# Логи
+*.log
+logs/
+
+# Зависимости
+node_modules/
+
+# Временные файлы
+temp/
+*.tmp
+
+# Файлы сессий
+sessions.json
+
+# Системные файлы
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
