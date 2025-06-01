@@ -6,7 +6,6 @@ async function handleStartCommand(ctx, startPeriodicCheck) {
   try {
     console.log('Команда /start вызвана');
 
-    // Инициализируем сессию
     if (!ctx.session) {
       ctx.session = {};
     }
@@ -21,7 +20,6 @@ async function handleStartCommand(ctx, startPeriodicCheck) {
     const canDonate = canDonatePlasma(ctx.session.lastDonationDate, ctx.session.donationType);
 
     if (!canDonate) {
-      // Включаем фоновую проверку
       if (ctx.session.checkingEnabled !== false) {
         ctx.session.checkingEnabled = true;
         startPeriodicCheck();
@@ -59,7 +57,6 @@ function handleStartCheckCommand(ctx, startPeriodicCheck) {
   }
 }
 
-// ИСПРАВЛЕНИЕ: добавляем параметр stopPeriodicCheck
 function handleStopCheckCommand(ctx, stopPeriodicCheck) {
   if (stopPeriodicCheck) {
     stopPeriodicCheck();
@@ -73,9 +70,36 @@ function handleStatusCommand(ctx) {
   ctx.reply(`Фоновая проверка: ${status}.`);
 }
 
+async function handleTestBookingCommand(ctx) {
+  if (!ctx.session.donorData || !ctx.session.lastDonationDate) {
+    await ctx.reply(
+      '❌ *Сначала нужно зарегистрироваться*\n\n' +
+      'Используйте команду /start для регистрации.',
+      { parse_mode: 'Markdown' }
+    );
+    return;
+  }
+
+  ctx.session.testMode = true; // Включаем тестовый режим
+
+  await ctx.reply(
+    '🧪 *Тестовый режим записи*\n\n' +
+    '📝 Сейчас мы пройдем весь процесс записи, но вместо реальной отправки данных ' +
+    'я покажу вам, какие данные были бы отправлены.\n\n' +
+    '🔍 Выберите дату для тестовой записи:',
+    { parse_mode: 'Markdown' }
+  );
+
+  // Используем существующую логику проверки дат
+  const { checkAvailability } = require('./booking');
+  await checkAvailability(ctx);
+}
+
+
 module.exports = {
   handleStartCommand,
   handleStartCheckCommand,
   handleStopCheckCommand,
-  handleStatusCommand
+  handleStatusCommand,
+  handleTestBookingCommand
 };

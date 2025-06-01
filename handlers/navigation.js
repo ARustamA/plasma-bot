@@ -32,10 +32,20 @@ async function handleTimeSelection(ctx, selectedTime) {
 
 async function handleBookingConfirmation(ctx, confirmation) {
   if (confirmation === 'yes') {
-    await ctx.editMessageText('🔄 Начинаю запись...');
+    const isTestMode = ctx.session.testMode || false;
+    const message = isTestMode
+      ? '🧪 Начинаю тестовую запись...'
+      : '🔄 Начинаю запись...';
+
+    await ctx.editMessageText(message);
     await bookAppointment(ctx, requestManualCaptcha);
   } else {
-    await ctx.editMessageText('❌ Запись отменена. Я продолжу проверять новые даты.');
+    const message = ctx.session.testMode
+      ? '❌ Тестовая запись отменена.'
+      : '❌ Запись отменена. Я продолжу проверять новые даты.';
+
+    delete ctx.session.testMode; // Очищаем тестовый режим при отмене
+    await ctx.editMessageText(message);
   }
 }
 
@@ -94,7 +104,7 @@ async function handleCaptchaCancel(ctx) {
   const userId = ctx.from.id;
 
   // Закрываем браузер если он открыт
-  const { closeBrowserSafely } = require('./services/donor-form');
+  const { closeBrowserSafely } = require('../services/donor-form');
   await closeBrowserSafely(userId);
 
   // Очищаем состояние капчи

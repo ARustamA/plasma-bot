@@ -5,10 +5,8 @@ async function requestManualCaptcha(ctx, captchaImagePath) {
   try {
     console.log('Отправляем капчу пользователю для ручного ввода...');
 
-    // Устанавливаем состояние ожидания ввода капчи
     ctx.session.state = 'waiting_captcha_input';
 
-    // Отправляем изображение капчи
     await ctx.replyWithPhoto(
       { source: captchaImagePath },
       {
@@ -48,7 +46,6 @@ async function requestManualCaptcha(ctx, captchaImagePath) {
     );
   }
 }
-
 
 module.exports = {
   requestManualCaptcha

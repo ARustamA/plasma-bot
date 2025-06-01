@@ -5,15 +5,15 @@ const fs = require('fs');
 
 // Модули
 const { BOT_TOKEN } = require('./config');
-const { handleStartCommand, handleStartCheckCommand, handleStopCheckCommand, handleStatusCommand } = require('./handlers/commands');
+const { handleStartCommand, handleStartCheckCommand, handleStopCheckCommand,
+  handleStatusCommand, handleTestBookingCommand } = require('./handlers/commands');
+
 const { handleDonationType, handleUserDataInput } = require('./handlers/userRegistration');
 const { handleTestCaptchaCommand, handleTestCaptchaInput } = require('./handlers/captcha');
 const { handleDateSelection, handleTimeSelection, handleBookingConfirmation,
   handleDateRefresh, handleTimeRefresh, handleCaptchaCancel } = require('./handlers/navigation');
 const { requestManualCaptcha } = require('./utils/captcha');
-
 const { bookAppointment } = require('./services/donor-form');
-
 const PeriodicCheckService = require('./services/periodicCheck');
 
 // Создаем бота
@@ -29,8 +29,10 @@ bot.telegram.setMyCommands([
   { command: '/startcheck', description: 'Включить автоматическую проверку дат' },
   { command: '/stopcheck', description: 'Остановить автоматическую проверку дат' },
   { command: '/status', description: 'Показать статус фоновой проверки' },
-  { command: '/testcaptcha', description: 'Протестировать ввод капчи' }
+  { command: '/testcaptcha', description: 'Протестировать ввод капчи' },
+  { command: '/testbooking', description: 'Тестовая запись (без отправки данных)' } // Новая команда
 ]);
+
 
 // === Команды ===
 bot.command('start', (ctx) => handleStartCommand(ctx, () => periodicCheckService.start()));
@@ -38,6 +40,7 @@ bot.command('startcheck', (ctx) => handleStartCheckCommand(ctx, () => periodicCh
 bot.command('stopcheck', (ctx) => handleStopCheckCommand(ctx, () => periodicCheckService.stop()));
 bot.command('status', handleStatusCommand);
 bot.command('testcaptcha', handleTestCaptchaCommand);
+bot.command('testbooking', handleTestBookingCommand);
 
 // === Обработчики действий ===
 bot.action(/donation_type_(.*)/, (ctx) => handleDonationType(ctx, ctx.match[1]));
@@ -57,14 +60,24 @@ bot.action('back_to_dates', (ctx) => {
 });
 
 bot.action(/refresh_times_(.*)/, (ctx) => handleTimeRefresh(ctx, ctx.match[1]));
-
-// Обработчики периодов времени
 bot.action('time_period_morning', (ctx) => ctx.answerCbQuery('🌅 Утреннее время (8:00-12:00)'));
 bot.action('time_period_afternoon', (ctx) => ctx.answerCbQuery('☀️ Дневное время (12:00-17:00)'));
 bot.action('time_period_evening', (ctx) => ctx.answerCbQuery('🌆 Вечернее время (17:00-20:00)'));
 
 bot.action('cancel_captcha', handleCaptchaCancel);
+bot.action('repeat_test', async (ctx) => {
+  ctx.session.testMode = true;
+  await ctx.editMessageText('🔄 Повторяем тестовую запись...');
+  const { checkAvailability } = require('./handlers/booking');
+  await checkAvailability(ctx);
+});
 
+bot.action('real_booking', async (ctx) => {
+  delete ctx.session.testMode;
+  await ctx.editMessageText('📝 Переходим к реальной записи...');
+  const { checkAvailability } = require('./handlers/booking');
+  await checkAvailability(ctx);
+});
 // === Обработка текстовых сообщений ===
 bot.on('text', async (ctx) => {
   const text = ctx.message.text;
@@ -90,12 +103,14 @@ bot.on('text', async (ctx) => {
         delete ctx.session.currentCaptchaPath;
       }
 
-      // ВАЖНО: НЕ создаем новый браузер, а продолжаем с существующим
+      // Продолжаем процесс записи с введенной капчей
       await bookAppointment(ctx, requestManualCaptcha);
       return;
     } else if (state === 'testing_captcha') {
+      // Обработка ввода капчи для теста
       await handleTestCaptchaInput(ctx, text);
     } else {
+      // Обработка регистрационных данных
       await handleUserDataInput(ctx, text, state);
     }
   } catch (error) {
@@ -105,12 +120,11 @@ bot.on('text', async (ctx) => {
 });
 
 // Обработчик завершения работы бота
-// Обработчик завершения работы бота
 process.on('SIGINT', () => {
   console.log('\n🛑 Завершение работы бота...');
 
   // Останавливаем периодическую проверку
-  periodicCheckService.stop(); // ИСПРАВЛЕНИЕ: используем метод объекта
+  periodicCheckService.stop();
 
   // Закрываем все браузеры
   const { cleanupBrowsers } = require('./services/donor-form');
@@ -127,7 +141,7 @@ process.on('SIGINT', () => {
 
 process.on('SIGTERM', () => {
   console.log('\n🛑 Завершение работы бота...');
-  periodicCheckService.stop(); // ИСПРАВЛЕНИЕ: используем метод объекта
+  periodicCheckService.stop();
 
   const { cleanupBrowsers } = require('./services/donor-form');
   cleanupBrowsers();

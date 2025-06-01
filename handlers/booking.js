@@ -1,16 +1,15 @@
-const { checkAvailabilityInternal, checkAvailabilityFromDateInternal } = require('../utils/dates');
+const { checkAvailabilityInternal, checkAvailabilityFromDateInternal, getMonthName } = require('../utils/dates');
 const { Markup } = require('telegraf');
-async function checkAvailabilityFromDate(ctx, startDate) {
-  try {
-    console.log('Проверяем доступность дат начиная с:', startDate.toLocaleDateString());
 
-    const { checkAvailabilityFromDateInternal } = require('../utils/dates');
-    const availableDates = await checkAvailabilityFromDateInternal(startDate);
+async function checkAvailability(ctx) {
+  try {
+    console.log('Проверяем доступность дат...');
+
+    const availableDates = await checkAvailabilityInternal();
 
     if (availableDates && availableDates.length > 0) {
       console.log('Найдены доступные даты:', availableDates);
 
-      // Создаем кнопки для выбора дат
       const dateButtons = availableDates.map(dateData => [
         {
           text: dateData.displayText,
@@ -18,7 +17,54 @@ async function checkAvailabilityFromDate(ctx, startDate) {
         }
       ]);
 
-      // Добавляем кнопку обновления
+      dateButtons.push([
+        { text: '🔄 Обновить список', callback_data: 'refresh_dates' }
+      ]);
+
+      await ctx.reply('🎉 Найдены доступные даты для записи:', {
+        reply_markup: { inline_keyboard: dateButtons }
+      });
+    } else {
+      console.log('Доступных дат не найдено');
+      await ctx.reply(
+        '😔 Пока нет доступных дат для записи. Я продолжу проверять...',
+        {
+          reply_markup: {
+            inline_keyboard: [[
+              { text: '🔄 Обновить список', callback_data: 'refresh_dates' }
+            ]]
+          }
+        }
+      );
+    }
+  } catch (error) {
+    console.error('Ошибка при проверке доступности:', error);
+
+    if (error.message.includes('net::ERR_EMPTY_RESPONSE') ||
+      error.message.includes('ERR_CONNECTION_REFUSED')) {
+      await ctx.reply('🌐 Сайт временно недоступен. Попробую позже...');
+    } else {
+      await ctx.reply('❌ Ошибка при проверке дат. Попробую позже...');
+    }
+  }
+}
+
+async function checkAvailabilityFromDate(ctx, startDate) {
+  try {
+    console.log('Проверяем доступность дат начиная с:', startDate.toLocaleDateString());
+
+    const availableDates = await checkAvailabilityFromDateInternal(startDate);
+
+    if (availableDates && availableDates.length > 0) {
+      console.log('Найдены доступные даты:', availableDates);
+
+      const dateButtons = availableDates.map(dateData => [
+        {
+          text: dateData.displayText,
+          callback_data: `select_date_${dateData.dateString}`
+        }
+      ]);
+
       dateButtons.push([
         { text: '🔄 Обновить список', callback_data: 'refresh_dates' }
       ]);
@@ -53,107 +99,17 @@ async function checkAvailabilityFromDate(ctx, startDate) {
   }
 }
 
-async function closeModalIfExists(page) {
-  try {
-    await page.waitForSelector('.donorform-modal', { timeout: 5000 });
-
-    console.log('Найдено модальное окно, закрываем...');
-
-    const closeSelectors = [
-      '.js-donorform-modal-close',
-      '.close',
-      '.donorform-modal-firsttime'
-    ];
-
-    for (const selector of closeSelectors) {
-      try {
-        const element = await page.locator(selector).first();
-        if (await element.isVisible()) {
-          await element.click();
-          console.log(`Модальное окно закрыто через: ${selector}`);
-          await page.waitForSelector('.donorform-modal', { state: 'hidden', timeout: 3000 });
-          return true;
-        }
-      } catch (e) {
-        // Продолжаем пробовать другие селекторы
-      }
-    }
-
-    await page.keyboard.press('Escape');
-    console.log('Попытка закрыть модальное окно через ESC');
-
-    return true;
-  } catch (error) {
-    console.log('Модальное окно не найдено или уже закрыто');
-    return false;
-  }
-}
-
-async function checkAvailability(ctx) {
-  try {
-    console.log('Проверяем доступность дат...');
-
-    const availableDates = await checkAvailabilityInternal();
-
-    if (availableDates && availableDates.length > 0) {
-      console.log('Найдены доступные даты:', availableDates);
-
-      // Создаем кнопки для выбора дат с отображением месяца
-      const dateButtons = availableDates.map(dateData => [
-        {
-          text: dateData.displayText,
-          callback_data: `select_date_${dateData.dateString}`
-        }
-      ]);
-
-      // Добавляем кнопку обновления
-      dateButtons.push([
-        { text: '🔄 Обновить список', callback_data: 'refresh_dates' }
-      ]);
-
-      await ctx.reply('🎉 Найдены доступные даты для записи:', {
-        reply_markup: { inline_keyboard: dateButtons }
-      });
-    } else {
-      console.log('Доступных дат не найдено');
-      await ctx.reply(
-        '😔 Пока нет доступных дат для записи. Я продолжу проверять...',
-        {
-          reply_markup: {
-            inline_keyboard: [[
-              { text: '🔄 Обновить список', callback_data: 'refresh_dates' }
-            ]]
-          }
-        }
-      );
-    }
-  } catch (error) {
-    console.error('Ошибка при проверке доступности:', error);
-
-    if (error.message.includes('net::ERR_EMPTY_RESPONSE') ||
-      error.message.includes('ERR_CONNECTION_REFUSED')) {
-      await ctx.reply('🌐 Сайт временно недоступен. Попробую позже...');
-    } else {
-      await ctx.reply('❌ Ошибка при проверке дат. Попробую позже...');
-    }
-  }
-}
-
-
 async function startBooking(ctx) {
   try {
     const selectedDate = ctx.session.selectedDate;
     const date = new Date(selectedDate);
-    const { getMonthName } = require('../utils/dates');
     const displayDate = `${date.getDate()} ${getMonthName(date.getMonth())}`;
 
     await ctx.reply(`🔍 Ищу доступное время для ${displayDate}...`);
 
-    // Получаем доступное время для выбранной даты
     const availableTimes = await getAvailableTimesForDate(selectedDate);
 
     if (availableTimes.length > 0) {
-      // Группируем время по периодам дня
       const timeGroups = {
         morning: availableTimes.filter(time => {
           const hour = parseInt(time.split(':')[0]);
@@ -192,7 +148,6 @@ async function startBooking(ctx) {
         });
       }
 
-      // Добавляем кнопки навигации
       timeButtons.push([
         { text: '🔄 Обновить время', callback_data: `refresh_times_${selectedDate}` },
         { text: '🔙 К выбору дат', callback_data: 'back_to_dates' }
@@ -230,7 +185,6 @@ async function getAvailableTimesForDate(dateString) {
     browser = await chromium.launch({ headless: true });
     const page = await browser.newPage();
 
-    // Переходим на страницу
     await page.goto('https://xn--66-6kcadbg3avshsx1aj7aza.xn--p1ai/donorform/');
 
     // Закрываем модальное окно
@@ -253,15 +207,12 @@ async function getAvailableTimesForDate(dateString) {
 
     // Парсим HTML и извлекаем доступное время
     const times = [];
-
-    // Обновленное регулярное выражение для нового формата HTML
     const timeRegex = /<a[^>]*data-value="(\d{2}:\d{2})"[^>]*>(\d{2}:\d{2})<\/a>\s*<span[^>]*>\((\d+)\)<\/span>/g;
     let match;
 
     while ((match = timeRegex.exec(response)) !== null) {
-      const time = match[1]; // data-value
-      const displayTime = match[2]; // отображаемое время
-      const availableSlots = parseInt(match[3]); // количество мест
+      const time = match[1];
+      const availableSlots = parseInt(match[3]);
 
       console.log(`Найдено время: ${time}, слотов: ${availableSlots}`);
 
@@ -270,11 +221,10 @@ async function getAvailableTimesForDate(dateString) {
       }
     }
 
-    // Альтернативный способ парсинга, если регулярка не работает
+    // Альтернативный способ парсинга
     if (times.length === 0) {
       console.log('Пробуем альтернативный способ парсинга...');
 
-      // Ищем все data-value атрибуты
       const dataValueRegex = /data-value="(\d{2}:\d{2})"/g;
       const countRegex = /\((\d+)\)/g;
 
@@ -315,5 +265,42 @@ async function getAvailableTimesForDate(dateString) {
   }
 }
 
+async function closeModalIfExists(page) {
+  try {
+    await page.waitForSelector('.donorform-modal', { timeout: 5000 });
+    console.log('Найдено модальное окно, закрываем...');
 
-module.exports = { checkAvailability, checkAvailabilityFromDate, startBooking };
+    const closeSelectors = [
+      '.js-donorform-modal-close',
+      '.close',
+      '.donorform-modal-firsttime'
+    ];
+
+    for (const selector of closeSelectors) {
+      try {
+        const element = await page.locator(selector).first();
+        if (await element.isVisible()) {
+          await element.click();
+          console.log(`Модальное окно закрыто через: ${selector}`);
+          await page.waitForSelector('.donorform-modal', { state: 'hidden', timeout: 3000 });
+          return true;
+        }
+      } catch (e) {
+        // Продолжаем пробовать другие селекторы
+      }
+    }
+
+    await page.keyboard.press('Escape');
+    console.log('Попытка закрыть модальное окно через ESC');
+    return true;
+  } catch (error) {
+    console.log('Модальное окно не найдено или уже закрыто');
+    return false;
+  }
+}
+
+module.exports = {
+  checkAvailability,
+  checkAvailabilityFromDate,
+  startBooking
+};

@@ -14,8 +14,8 @@
           "snils": "14486082175"
         },
         "checkingEnabled": false,
-        "selectedDate": "2025-07-27",
-        "selectedTime": "10:00",
+        "selectedDate": "2025-07-29",
+        "selectedTime": "15:00",
         "formState": {
           "dateSelected": true,
           "timeSelected": true,
@@ -37,14 +37,16 @@
           "snils": "14000082995"
         },
         "checkingEnabled": true,
-        "selectedDate": "2025-07-18",
-        "selectedTime": "17:00"
+        "selectedDate": "2025-07-23",
+        "selectedTime": "10:00"
       }
     },
     {
       "id": "458460406:458460406",
       "data": {
-        "checkingEnabled": true
+        "checkingEnabled": true,
+        "state": "ask_last_donation_date",
+        "donationType": "blood"
       }
     }
   ]
