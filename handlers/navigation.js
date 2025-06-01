@@ -91,18 +91,31 @@ async function handleTimeRefresh(ctx, selectedDate) {
 }
 
 async function handleCaptchaCancel(ctx) {
+  const userId = ctx.from.id;
+
+  // Закрываем браузер если он открыт
+  const { closeBrowserSafely } = require('./services/donor-form');
+  await closeBrowserSafely(userId);
+
   // Очищаем состояние капчи
   ctx.session.state = 'ready';
   delete ctx.session.manualCaptchaText;
+  delete ctx.session.pageReady;
 
-  // Удаляем файл капчи
+  // Удаляем файл капчи если он есть
   if (ctx.session.currentCaptchaPath && fs.existsSync(ctx.session.currentCaptchaPath)) {
-    fs.unlinkSync(ctx.session.currentCaptchaPath);
+    try {
+      fs.unlinkSync(ctx.session.currentCaptchaPath);
+      console.log('🗑️ Файл капчи удален:', ctx.session.currentCaptchaPath);
+    } catch (e) {
+      console.log('⚠️ Ошибка при удалении файла капчи:', e.message);
+    }
     delete ctx.session.currentCaptchaPath;
   }
 
   await ctx.editMessageText(
-    '❌ *Запись отменена*\n\n💡 Вы можете выбрать другое время или дату для записи.',
+    '❌ *Запись отменена*\n\n' +
+    '💡 Вы можете выбрать другое время или дату для записи.',
     {
       parse_mode: 'Markdown',
       reply_markup: Markup.inlineKeyboard([

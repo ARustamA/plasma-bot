@@ -59,8 +59,11 @@ function handleStartCheckCommand(ctx, startPeriodicCheck) {
   }
 }
 
+// ИСПРАВЛЕНИЕ: добавляем параметр stopPeriodicCheck
 function handleStopCheckCommand(ctx, stopPeriodicCheck) {
-  stopPeriodicCheck();
+  if (stopPeriodicCheck) {
+    stopPeriodicCheck();
+  }
   ctx.session.checkingEnabled = false;
   ctx.reply('Фоновая проверка остановлена.');
 }

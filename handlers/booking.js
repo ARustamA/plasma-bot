@@ -249,17 +249,49 @@ async function getAvailableTimesForDate(dateString) {
       }
     }, dateString);
 
+    console.log(`Ответ сервера для ${dateString}:`, response.substring(0, 500) + '...');
+
     // Парсим HTML и извлекаем доступное время
     const times = [];
-    const timeRegex = /(\d{2}:\d{2})\s*<span[^>]*>\((\d+)\)<\/span>/g;
+
+    // Обновленное регулярное выражение для нового формата HTML
+    const timeRegex = /<a[^>]*data-value="(\d{2}:\d{2})"[^>]*>(\d{2}:\d{2})<\/a>\s*<span[^>]*>\((\d+)\)<\/span>/g;
     let match;
 
     while ((match = timeRegex.exec(response)) !== null) {
-      const time = match[1];
-      const availableSlots = parseInt(match[2]);
+      const time = match[1]; // data-value
+      const displayTime = match[2]; // отображаемое время
+      const availableSlots = parseInt(match[3]); // количество мест
+
+      console.log(`Найдено время: ${time}, слотов: ${availableSlots}`);
 
       if (availableSlots > 0) {
         times.push(time);
+      }
+    }
+
+    // Альтернативный способ парсинга, если регулярка не работает
+    if (times.length === 0) {
+      console.log('Пробуем альтернативный способ парсинга...');
+
+      // Ищем все data-value атрибуты
+      const dataValueRegex = /data-value="(\d{2}:\d{2})"/g;
+      const countRegex = /\((\d+)\)/g;
+
+      const timeMatches = [...response.matchAll(dataValueRegex)];
+      const countMatches = [...response.matchAll(countRegex)];
+
+      console.log(`Найдено времен: ${timeMatches.length}, счетчиков: ${countMatches.length}`);
+
+      for (let i = 0; i < Math.min(timeMatches.length, countMatches.length); i++) {
+        const time = timeMatches[i][1];
+        const count = parseInt(countMatches[i][1]);
+
+        console.log(`Время: ${time}, количество: ${count}`);
+
+        if (count > 0) {
+          times.push(time);
+        }
       }
     }
 
@@ -270,6 +302,7 @@ async function getAvailableTimesForDate(dateString) {
       return timeA[0] * 60 + timeA[1] - (timeB[0] * 60 + timeB[1]);
     });
 
+    console.log(`Итого найдено доступных времен для ${dateString}:`, times);
     return times;
 
   } catch (error) {
@@ -281,5 +314,6 @@ async function getAvailableTimesForDate(dateString) {
     }
   }
 }
+
 
 module.exports = { checkAvailability, checkAvailabilityFromDate, startBooking };

@@ -1,13 +1,19 @@
 const { Telegraf } = require('telegraf');
 const LocalSession = require('telegraf-session-local');
 const debug = require('debug')('bot');
+const fs = require('fs');
 
 // Модули
 const { BOT_TOKEN } = require('./config');
 const { handleStartCommand, handleStartCheckCommand, handleStopCheckCommand, handleStatusCommand } = require('./handlers/commands');
 const { handleDonationType, handleUserDataInput } = require('./handlers/userRegistration');
-const { handleCaptchaInput, handleTestCaptchaCommand, handleTestCaptchaInput } = require('./handlers/captcha');
-const { handleDateSelection, handleTimeSelection, handleBookingConfirmation, handleDateRefresh, handleTimeRefresh, handleCaptchaCancel } = require('./handlers/navigation');
+const { handleTestCaptchaCommand, handleTestCaptchaInput } = require('./handlers/captcha');
+const { handleDateSelection, handleTimeSelection, handleBookingConfirmation,
+  handleDateRefresh, handleTimeRefresh, handleCaptchaCancel } = require('./handlers/navigation');
+const { requestManualCaptcha } = require('./utils/captcha');
+
+const { bookAppointment } = require('./services/donor-form');
+
 const PeriodicCheckService = require('./services/periodicCheck');
 
 // Создаем бота
@@ -66,19 +72,71 @@ bot.on('text', async (ctx) => {
 
   try {
     if (state === 'waiting_captcha_input') {
-      // Обработка ввода капчи для реальной записи
-      await handleCaptchaInput(ctx, text);
+      const captchaText = text.trim();
+
+      if (captchaText.length < 3) {
+        await ctx.reply('❌ Слишком короткий текст. Пожалуйста, введите текст с картинки:');
+        return;
+      }
+
+      ctx.session.manualCaptchaText = captchaText;
+      ctx.session.state = 'captcha_received';
+
+      await ctx.reply(`✅ Капча получена: "${captchaText}"\n🔄 Отправляю форму...`);
+
+      // Удаляем файл капчи если он есть
+      if (ctx.session.currentCaptchaPath && fs.existsSync(ctx.session.currentCaptchaPath)) {
+        fs.unlinkSync(ctx.session.currentCaptchaPath);
+        delete ctx.session.currentCaptchaPath;
+      }
+
+      // ВАЖНО: НЕ создаем новый браузер, а продолжаем с существующим
+      await bookAppointment(ctx, requestManualCaptcha);
+      return;
     } else if (state === 'testing_captcha') {
-      // Обработка ввода капчи для теста
       await handleTestCaptchaInput(ctx, text);
     } else {
-      // Обработка регистрационных данных
       await handleUserDataInput(ctx, text, state);
     }
   } catch (error) {
     console.error('Ошибка при обработке текста:', error);
     await ctx.reply('Произошла ошибка. Попробуйте ещё раз.');
   }
+});
+
+// Обработчик завершения работы бота
+// Обработчик завершения работы бота
+process.on('SIGINT', () => {
+  console.log('\n🛑 Завершение работы бота...');
+
+  // Останавливаем периодическую проверку
+  periodicCheckService.stop(); // ИСПРАВЛЕНИЕ: используем метод объекта
+
+  // Закрываем все браузеры
+  const { cleanupBrowsers } = require('./services/donor-form');
+  cleanupBrowsers();
+
+  // Останавливаем бота
+  bot.stop('SIGINT');
+
+  setTimeout(() => {
+    console.log('👋 Бот остановлен');
+    process.exit(0);
+  }, 3000);
+});
+
+process.on('SIGTERM', () => {
+  console.log('\n🛑 Завершение работы бота...');
+  periodicCheckService.stop(); // ИСПРАВЛЕНИЕ: используем метод объекта
+
+  const { cleanupBrowsers } = require('./services/donor-form');
+  cleanupBrowsers();
+
+  bot.stop('SIGTERM');
+
+  setTimeout(() => {
+    process.exit(0);
+  }, 3000);
 });
 
 // === Обработка ошибок ===

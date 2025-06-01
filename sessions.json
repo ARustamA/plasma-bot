@@ -13,6 +13,37 @@
           "birthDate": "1992-07-27",
           "snils": "14486082175"
         },
+        "checkingEnabled": false,
+        "selectedDate": "2025-07-27",
+        "selectedTime": "10:00",
+        "formState": {
+          "dateSelected": true,
+          "timeSelected": true,
+          "formFilled": true
+        }
+      }
+    },
+    {
+      "id": "5741376146:5741376146",
+      "data": {
+        "state": "ready",
+        "donationType": "plasma",
+        "lastDonationDate": "2025-04-07",
+        "donorData": {
+          "name": "Петров Илья Владимирович",
+          "phone": "+79999999997",
+          "email": "gmail@rambler.ru",
+          "birthDate": "1997-03-23",
+          "snils": "14000082995"
+        },
+        "checkingEnabled": true,
+        "selectedDate": "2025-07-18",
+        "selectedTime": "17:00"
+      }
+    },
+    {
+      "id": "458460406:458460406",
+      "data": {
         "checkingEnabled": true
       }
     }

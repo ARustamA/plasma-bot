@@ -187,7 +187,9 @@ async function getAvailableDatesFromCurrentCalendar(page, tomorrow, endDate) {
   try {
     console.log('Получаем доступные даты из текущего календаря...');
 
-    const availableDatesData = await page.evaluate((tomorrowTime, endDateTime) => {
+    // ИСПРАВЛЕНИЕ: передаем все параметры в одном объекте
+    const availableDatesData = await page.evaluate((params) => {
+      const { tomorrowTime, endDateTime } = params;
       const tomorrow = new Date(tomorrowTime);
       const endDate = new Date(endDateTime);
 
@@ -256,7 +258,10 @@ async function getAvailableDatesFromCurrentCalendar(page, tomorrow, endDate) {
       dates.sort((a, b) => new Date(a.dateString) - new Date(b.dateString));
 
       return dates;
-    }, tomorrow.getTime(), endDate.getTime());
+    }, {
+      tomorrowTime: tomorrow.getTime(),
+      endDateTime: endDate.getTime()
+    }); // ИСПРАВЛЕНИЕ: передаем объект с параметрами
 
     console.log('Найденные даты в текущем календаре:', availableDatesData);
     return availableDatesData;
@@ -266,6 +271,7 @@ async function getAvailableDatesFromCurrentCalendar(page, tomorrow, endDate) {
     return [];
   }
 }
+
 // Добавляем новую функцию checkAvailabilityFromDateInternal
 async function checkAvailabilityFromDateInternal(startDate) {
   let browser;
@@ -378,9 +384,10 @@ async function getAvailableDatesFromCurrentCalendarFromDate(page, startDate, end
     console.log('Получаем доступные даты из текущего календаря начиная с:', startDate.toLocaleDateString());
 
     // ИСПРАВЛЕНИЕ: передаем объект вместо двух отдельных аргументов
-    const availableDatesData = await page.evaluate((dateRange) => {
-      const startDate = new Date(dateRange.startDateTime);
-      const endDate = new Date(dateRange.endDateTime);
+    const availableDatesData = await page.evaluate((params) => {
+      const { startDateTime, endDateTime } = params;
+      const startDate = new Date(startDateTime);
+      const endDate = new Date(endDateTime);
 
       // Получаем текущий отображаемый месяц и год
       const monthElement = document.querySelector('.slick-active .donorform-calendar__month');
@@ -448,7 +455,7 @@ async function getAvailableDatesFromCurrentCalendarFromDate(page, startDate, end
     }, {
       startDateTime: startDate.getTime(),
       endDateTime: endDate.getTime()
-    });
+    }); // ИСПРАВЛЕНИЕ: передаем объект с параметрами
 
     console.log('Найденные даты в текущем календаре:', availableDatesData);
     return availableDatesData;
@@ -458,6 +465,7 @@ async function getAvailableDatesFromCurrentCalendarFromDate(page, startDate, end
     return [];
   }
 }
+
 
 async function checkTimeAvailability(page, dateString) {
   try {
@@ -483,19 +491,22 @@ async function checkTimeAvailability(page, dateString) {
       return false;
     }
 
-    // Улучшенная проверка доступных слотов
+    // Обновленная проверка доступных слотов для нового формата
     const hasAvailableSlots = (
-      response.includes('intervals-column-item') ||
-      response.includes('time-slot') ||
-      response.includes('available')
-    ) && (
-        // Проверяем, что есть слоты с доступными местами
-        response.includes('(1)') ||
+      // Проверяем наличие структуры времени
+      response.includes('intervals-column') &&
+      response.includes('data-value=') &&
+      // Проверяем, что есть слоты с доступными местами
+      (response.includes('(1)') ||
         response.includes('(2)') ||
         response.includes('(3)') ||
         response.includes('(4)') ||
-        response.includes('(5)')
-      ) && (
+        response.includes('(5)') ||
+        response.includes('(6)') ||
+        response.includes('(7)') ||
+        response.includes('(8)') ||
+        response.includes('(9)'))
+    ) && (
         // И нет признаков полной занятости
         !response.includes('Нет доступных') &&
         !response.includes('записи закрыты') &&
@@ -511,6 +522,7 @@ async function checkTimeAvailability(page, dateString) {
     return false;
   }
 }
+
 
 function canDonatePlasma(lastDonationDate, donationType) {
   try {
